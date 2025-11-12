@@ -1,0 +1,122 @@
+_BASE_: [
+  '../datasets/coco_detection.yml',
+  '../runtime.yml',
+  '_base_/optimizer_300e.yml',
+  '_base_/picodet_v2.yml',
+  '_base_/picodet_320_reader.yml',
+]
+
+weights: output/picodet_s_320_coco_lcnet/model_final
+
+PicoDet:
+  backbone: LCNet
+  neck: LCPAN
+  head: PicoHeadV2
+
+LCNet:
+  scale: 1.0
+  feature_maps: [3, 4, 5]
+
+LCPAN:
+  out_channels: 128
+  use_depthwise: True
+  num_features: 4
+
+PicoHeadV2:
+  conv_feat:
+    name: PicoFeat
+    feat_in: 128
+    feat_out: 128
+    num_convs: 4
+    num_fpn_stride: 4
+    norm_type: bn
+    share_cls_reg: True
+    use_se: True
+  feat_in_chan: 128
+
+# 数据集配置
+metric: COCO
+num_classes: 3
+
+TrainDataset:
+  !COCODataSet
+    image_dir: /workspace/dataset/images
+    anno_path: /workspace/dataset/annotations/train.json
+    dataset_dir: /workspace/dataset
+    data_fields: ['image', 'gt_bbox', 'gt_class', 'is_crowd']
+
+EvalDataset:
+  !COCODataSet
+    image_dir: /workspace/dataset/images
+    anno_path: /workspace/dataset/annotations/val.json
+    dataset_dir: /workspace/dataset
+
+TestDataset:
+  !ImageFolder
+    anno_path: /workspace/dataset/annotations/val.json
+
+# 训练配置
+epoch: 100
+LearningRate:
+  base_lr: 0.04
+  schedulers:
+  - !CosineDecay
+    max_epochs: 100
+  - !LinearWarmup
+    start_factor: 0.1
+    steps: 300
+
+OptimizerBuilder:
+  optimizer:
+    momentum: 0.9
+    type: Momentum
+  regularizer:
+    factor: 0.00004
+    type: L2
+
+# 训练设置
+use_gpu: true
+log_iter: 20
+save_dir: output
+snapshot_epoch: 10
+print_flops: false
+
+# Worker设置
+worker_num: 4
+eval_height: &eval_height 320
+eval_width: &eval_width 320
+eval_size: &eval_size [*eval_height, *eval_width]
+
+TrainReader:
+  sample_transforms:
+  - Decode: {}
+  - RandomCrop: {}
+  - RandomFlip: {prob: 0.5}
+  - RandomDistort: {}
+  batch_transforms:
+  - BatchRandomResize: {target_size: [256, 288, 320, 352, 384], random_size: True, random_interp: True, keep_ratio: False}
+  - NormalizeImage: {is_scale: true, mean: [0.485,0.456,0.406], std: [0.229, 0.224,0.225]}
+  - Permute: {}
+  - PadGT: {}
+  batch_size: 32
+  shuffle: true
+  drop_last: true
+
+EvalReader:
+  sample_transforms:
+  - Decode: {}
+  - Resize: {interp: 2, target_size: *eval_size, keep_ratio: False}
+  - NormalizeImage: {is_scale: true, mean: [0.485,0.456,0.406], std: [0.229, 0.224,0.225]}
+  - Permute: {}
+  batch_size: 8
+  shuffle: false
+
+TestReader:
+  inputs_def:
+    image_shape: [1, 3, *eval_height, *eval_width]
+  sample_transforms:
+  - Decode: {}
+  - Resize: {interp: 2, target_size: *eval_size, keep_ratio: False}
+  - NormalizeImage: {is_scale: true, mean: [0.485,0.456,0.406], std: [0.229, 0.224,0.225]}
+  - Permute: {}
+  batch_size: 1
