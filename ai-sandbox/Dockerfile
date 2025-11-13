@@ -100,59 +100,66 @@ ENV GOPROXY="https://goproxy.cn,direct"
 
 # 配置 pip 使用国内镜像源（加速下载）
 RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
-    pip config set install.trusted-host mirrors.aliyun.com
+    pip config set install.trusted-host mirrors.aliyun.com && \
+    pip config set global.timeout 600
 
-# 安装 Python 工具和库
+# 安装 Python 基础库（第一批）
 RUN pip install --no-cache-dir \
-    # AI 工具
-    ollama \
-    shell-gpt \
-    open-interpreter \
-    aider-chat \
-    # 网络和爬虫
     requests \
     httpx \
     beautifulsoup4 \
     lxml \
     html2text \
-    duckduckgo-search \
-    wikipedia \
-    # 数据处理
+    pyyaml \
+    toml \
+    python-dotenv \
+    click \
+    rich \
+    typer
+
+# 安装数据处理库（第二批）
+RUN pip install --no-cache-dir \
     pandas \
     numpy \
-    # 数据库
-    sqlalchemy \
-    psycopg2-binary \
-    pymongo \
-    redis \
-    # 视频/音频
-    yt-dlp \
-    pydub \
-    # 文档处理
+    Pillow
+
+# 安装文档处理库（第三批）
+RUN pip install --no-cache-dir \
     python-docx \
     openpyxl \
     PyPDF2 \
     pdfplumber \
-    markdown \
-    # 图像处理
-    Pillow \
-    # API 工具
-    pyyaml \
-    toml \
-    # 代码分析
-    ast-grep-py \
+    markdown
+
+# 安装数据库客户端（第四批）
+RUN pip install --no-cache-dir \
+    sqlalchemy \
+    psycopg2-binary \
+    pymongo \
+    redis
+
+# 安装开发工具（第五批）
+RUN pip install --no-cache-dir \
     black \
     flake8 \
     pylint \
-    # 测试工具
     pytest \
-    pytest-cov \
-    # 其他实用工具
-    python-dotenv \
-    click \
-    rich \
-    typer \
-    # 浏览器自动化（轻量级）
+    pytest-cov
+
+# 安装 AI 辅助工具（第六批 - 可能较慢）
+RUN pip install --no-cache-dir \
+    ollama \
+    shell-gpt \
+    open-interpreter \
+    aider-chat
+
+# 安装其他工具（第七批）
+RUN pip install --no-cache-dir \
+    duckduckgo-search \
+    wikipedia \
+    yt-dlp \
+    pydub \
+    ast-grep-py \
     playwright \
     selenium
 
