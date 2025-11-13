@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y \
     httpie \
     lynx \
     w3m \
-    netcat \
+    netcat-openbsd \
     telnet \
     dnsutils \
     # 数据库客户端
