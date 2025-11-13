@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  demucs:
+    build: .
+    image: demucs-gpu:latest
+    container_name: demucs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      # 将主机的音乐目录挂载到容器
+      - ~/music:/audio/input
+      - ~/music/separated:/audio/output
+    working_dir: /audio
+    stdin_open: true
+    tty: true
+    command: bash
