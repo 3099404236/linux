@@ -1,165 +1,170 @@
 #!/usr/bin/env python3
 """
-动物检测预测脚本 - 用于AI Studio比赛提交
-要求：
-- 读取 data.txt（图片路径列表）
-- 输出 result.json（COCO格式检测结果）
-- 速度要求：≥20 FPS（V100）
+动物检测预测脚本 - 优化版
+基于 PaddleDetection 官方推理，优化速度
 """
 
 import sys
 import os
 import json
 import time
-import paddle
+import yaml
 import numpy as np
-from PIL import Image
+import cv2
+from collections import defaultdict
+
+import paddle
 from paddle.inference import Config, create_predictor
+from ppdet.core.workspace import load_config, merge_config
+from ppdet.data.transform import Compose
+from ppdet.utils.checkpoint import load_weight
+from ppdet.modeling.architectures import BaseArch
 
 
-class AnimalDetector:
-    def __init__(self, model_dir, threshold=0.5):
+class Detector:
+    def __init__(self, model_dir, threshold=0.3, device='GPU',
+                 enable_mkldnn=False, cpu_threads=1,
+                 trt_min_shape=1, trt_max_shape=1280, trt_opt_shape=640):
         """
         初始化检测器
-        Args:
-            model_dir: 模型文件目录
-            threshold: 置信度阈值
         """
         self.threshold = threshold
+
+        # 加载配置
+        cfg_file = os.path.join(model_dir, 'infer_cfg.yml')
+        with open(cfg_file) as f:
+            self.config = yaml.safe_load(f)
 
         # 配置推理引擎
         model_file = os.path.join(model_dir, 'model.pdmodel')
         params_file = os.path.join(model_dir, 'model.pdiparams')
 
         config = Config(model_file, params_file)
-        config.enable_use_gpu(1000, 0)  # GPU显存（MB），设备ID
-        config.switch_ir_optim(True)     # 开启IR优化
-        config.enable_memory_optim()     # 开启内存优化
+
+        # GPU 配置
+        if device == 'GPU':
+            config.enable_use_gpu(1000, 0)
+
+        # 优化配置（提速）
+        config.switch_ir_optim(True)
+        config.enable_memory_optim()
+        config.disable_glog_info()
+
+        # TensorRT 加速（如果支持）
+        if device == 'GPU':
+            # 启用 TensorRT
+            precision_mode = paddle.inference.PrecisionType.Float32
+            config.enable_tensorrt_engine(
+                workspace_size=1 << 30,
+                max_batch_size=1,
+                min_subgraph_size=40,
+                precision_mode=precision_mode,
+                use_static=False,
+                use_calib_mode=False)
+
+            # 设置动态 shape
+            min_input_shape = {'image': [1, 3, trt_min_shape, trt_min_shape],
+                               'scale_factor': [1, 2]}
+            max_input_shape = {'image': [1, 3, trt_max_shape, trt_max_shape],
+                               'scale_factor': [1, 2]}
+            opt_input_shape = {'image': [1, 3, trt_opt_shape, trt_opt_shape],
+                               'scale_factor': [1, 2]}
+            config.set_trt_dynamic_shape_info(
+                min_input_shape, max_input_shape, opt_input_shape)
 
         # 创建预测器
         self.predictor = create_predictor(config)
 
-        # 获取输入输出
+        # 获取输入输出名称
         self.input_names = self.predictor.get_input_names()
         self.output_names = self.predictor.get_output_names()
 
-        # 类别映射
-        self.class_names = ['monkey', 'panda', 'wolf']
+        # 预处理配置
+        self.preprocess_ops = self._get_preprocess_ops()
 
-        # 预处理参数
-        self.mean = [0.485, 0.456, 0.406]
-        self.std = [0.229, 0.224, 0.225]
-        self.input_size = (320, 320)
+    def _get_preprocess_ops(self):
+        """获取预处理操作"""
+        preprocess_list = []
+        for op_info in self.config['Preprocess']:
+            op_type = list(op_info.keys())[0]
+            op_info[op_type]['name'] = op_type
+            preprocess_list.append(op_info[op_type])
+        return Compose(preprocess_list)
 
     def preprocess(self, image_path):
         """
-        图像预处理
-        Args:
-            image_path: 图片路径
-        Returns:
-            处理后的图像tensor, 原始图像尺寸
+        预处理图像
         """
         # 读取图像
-        img = Image.open(image_path).convert('RGB')
-        orig_size = img.size  # (width, height)
+        im = cv2.imread(image_path)
+        if im is None:
+            raise ValueError(f"Cannot read image: {image_path}")
 
-        # Resize
-        img = img.resize(self.input_size, Image.BILINEAR)
+        # 应用预处理
+        data = {'image': im}
+        data = self.preprocess_ops(data)
 
-        # 转numpy并归一化
-        img = np.array(img).astype('float32') / 255.0
+        return data
 
-        # 标准化
-        img = (img - self.mean) / self.std
-
-        # HWC -> CHW
-        img = img.transpose(2, 0, 1)
-
-        # 增加batch维度
-        img = img[np.newaxis, :]
-
-        return img.astype('float32'), orig_size
-
-    def postprocess(self, outputs, orig_size, image_id):
+    def postprocess(self, np_boxes, np_boxes_num, im_shape, scale_factor, threshold):
         """
-        后处理：将模型输出转换为COCO格式
-        Args:
-            outputs: 模型输出
-            orig_size: 原始图像尺寸 (width, height)
-            image_id: 图像ID
-        Returns:
-            检测结果列表
+        后处理
         """
+        expect_boxes = (np_boxes[:, 1] > threshold) & (np_boxes[:, 0] > -1)
+        np_boxes = np_boxes[expect_boxes, :]
+
         results = []
-
-        # 解析输出
-        # PaddleDetection输出格式: [class_id, score, x1, y1, x2, y2]
-        boxes = outputs[0]  # shape: [N, 6]
-
-        if len(boxes) == 0:
-            return results
-
-        # 坐标缩放（从320x320恢复到原始尺寸）
-        scale_x = orig_size[0] / self.input_size[0]
-        scale_y = orig_size[1] / self.input_size[1]
-
-        for box in boxes:
+        for box in np_boxes:
             class_id = int(box[0])
             score = float(box[1])
 
-            if score < self.threshold:
+            if score < threshold:
                 continue
 
-            # 坐标
-            x1, y1, x2, y2 = box[2:6]
+            # 坐标 [x1, y1, x2, y2]
+            xmin, ymin, xmax, ymax = box[2:6]
 
-            # 恢复到原始尺寸
-            x1 = float(x1 * scale_x)
-            y1 = float(y1 * scale_y)
-            x2 = float(x2 * scale_x)
-            y2 = float(y2 * scale_y)
+            # 转换为 COCO 格式 [x, y, w, h]
+            w = xmax - xmin
+            h = ymax - ymin
 
-            # 转换为COCO格式 [x, y, width, height]
-            w = x2 - x1
-            h = y2 - y1
-
-            result = {
-                'image_id': image_id,
-                'category_id': class_id + 1,  # COCO格式类别ID从1开始
-                'bbox': [x1, y1, w, h],
-                'score': score
-            }
-            results.append(result)
+            results.append({
+                'class_id': class_id,
+                'score': score,
+                'bbox': [float(xmin), float(ymin), float(w), float(h)]
+            })
 
         return results
 
-    def predict(self, image_path, image_id):
+    def predict(self, image_path):
         """
         预测单张图片
-        Args:
-            image_path: 图片路径
-            image_id: 图像ID
-        Returns:
-            检测结果列表
         """
         # 预处理
-        img_tensor, orig_size = self.preprocess(image_path)
+        data = self.preprocess(image_path)
+
+        # 准备输入
+        inputs = {}
+        inputs['image'] = np.array([data['image']]).astype('float32')
+        inputs['im_shape'] = np.array([data['im_shape']]).astype('float32')
+        inputs['scale_factor'] = np.array([data['scale_factor']]).astype('float32')
 
         # 推理
-        input_handle = self.predictor.get_input_handle(self.input_names[0])
-        input_handle.copy_from_cpu(img_tensor)
+        for input_name in self.input_names:
+            input_tensor = self.predictor.get_input_handle(input_name)
+            input_tensor.copy_from_cpu(inputs[input_name])
 
         self.predictor.run()
 
         # 获取输出
-        outputs = []
-        for output_name in self.output_names:
-            output_handle = self.predictor.get_output_handle(output_name)
-            output = output_handle.copy_to_cpu()
-            outputs.append(output)
+        np_boxes = self.predictor.get_output_handle(self.output_names[0]).copy_to_cpu()
+        np_boxes_num = self.predictor.get_output_handle(self.output_names[1]).copy_to_cpu()
 
         # 后处理
-        results = self.postprocess(outputs, orig_size, image_id)
+        results = self.postprocess(
+            np_boxes, np_boxes_num,
+            data['im_shape'], data['scale_factor'],
+            self.threshold)
 
         return results
 
@@ -167,49 +172,81 @@ class AnimalDetector:
 def main(data_file, output_file):
     """
     主函数
-    Args:
-        data_file: 输入文件，包含图片路径列表
-        output_file: 输出文件，COCO格式JSON
     """
-    print(f"开始预测...")
+    print("=" * 50)
+    print("开始预测...")
+    print("=" * 50)
     print(f"输入文件: {data_file}")
     print(f"输出文件: {output_file}")
 
     # 初始化检测器
-    model_dir = 'model'  # 模型目录
-    detector = AnimalDetector(model_dir, threshold=0.3)
+    model_dir = 'model'
+    detector = Detector(
+        model_dir=model_dir,
+        threshold=0.3,
+        device='GPU',
+        trt_min_shape=320,
+        trt_max_shape=640,
+        trt_opt_shape=320
+    )
 
     # 读取图片列表
     with open(data_file, 'r') as f:
         image_paths = [line.strip() for line in f.readlines()]
 
-    print(f"共 {len(image_paths)} 张图片需要预测")
+    print(f"共 {len(image_paths)} 张图片")
+    print("=" * 50)
 
-    # 预测所有图片
+    # 预测
     all_results = []
     start_time = time.time()
 
+    # 预热（第一次推理会慢，预热后才准确）
+    if len(image_paths) > 0:
+        _ = detector.predict(image_paths[0])
+
+    # 重新计时
+    start_time = time.time()
+
     for idx, image_path in enumerate(image_paths):
-        if (idx + 1) % 100 == 0:
-            print(f"处理进度: {idx + 1}/{len(image_paths)}")
+        if (idx + 1) % 50 == 0:
+            elapsed = time.time() - start_time
+            fps = (idx + 1) / elapsed
+            print(f"处理进度: {idx + 1}/{len(image_paths)}, FPS: {fps:.2f}")
 
-        results = detector.predict(image_path, idx + 1)
-        all_results.extend(results)
+        results = detector.predict(image_path)
 
-    # 计算FPS
+        # 转换为 COCO 格式
+        for result in results:
+            all_results.append({
+                'image_id': idx + 1,
+                'category_id': result['class_id'] + 1,  # COCO 从 1 开始
+                'bbox': result['bbox'],
+                'score': result['score']
+            })
+
+    # 计算最终 FPS
     total_time = time.time() - start_time
     fps = len(image_paths) / total_time
 
-    print(f"\n预测完成！")
-    print(f"总耗时: {total_time:.2f}秒")
+    print("=" * 50)
+    print(f"预测完成！")
+    print(f"总耗时: {total_time:.2f} 秒")
     print(f"FPS: {fps:.2f}")
     print(f"检测到 {len(all_results)} 个目标")
+    print("=" * 50)
 
     # 保存结果
     with open(output_file, 'w') as f:
         json.dump(all_results, f)
 
     print(f"结果已保存到: {output_file}")
+
+    # 检查 FPS
+    if fps < 20:
+        print(f"\n⚠️  警告: FPS ({fps:.2f}) 低于要求 (20)，可能无法通过评测！")
+    else:
+        print(f"\n✅ FPS ({fps:.2f}) 满足要求！")
 
 
 if __name__ == '__main__':
