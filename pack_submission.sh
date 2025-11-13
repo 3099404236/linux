@@ -23,7 +23,18 @@ cp /workspace/predict.py $SUBMIT_DIR/
 
 echo "3. 复制 PaddleDetection 依赖库..."
 echo "   这可能需要一些时间..."
-cp -r /workspace/PaddleDetection $SUBMIT_DIR/env/
+# 只复制必要的目录和文件，排除不需要的
+rsync -a --exclude='.git' \
+         --exclude='output' \
+         --exclude='vdl_dir' \
+         --exclude='__pycache__' \
+         --exclude='*.pyc' \
+         --exclude='*.pyo' \
+         --exclude='dataset' \
+         --exclude='logs' \
+         --exclude='.idea' \
+         --exclude='configs/datasets' \
+         /workspace/PaddleDetection $SUBMIT_DIR/env/
 echo "   PaddleDetection 复制完成"
 
 echo "4. 检查模型大小..."
