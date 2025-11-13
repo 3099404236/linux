@@ -30,6 +30,23 @@ def main(data_file, output_file):
     with open(data_file, 'r') as f:
         image_paths = [line.strip() for line in f.readlines()]
 
+    # 处理图片路径：如果是相对路径，转换为基于 data_file 所在目录的路径
+    data_dir = os.path.dirname(os.path.abspath(data_file))
+    processed_paths = []
+    for path in image_paths:
+        if not os.path.isabs(path):  # 如果是相对路径
+            # 尝试相对于 data_file 所在目录
+            abs_path = os.path.join(data_dir, path)
+            if os.path.exists(abs_path):
+                processed_paths.append(abs_path)
+            else:
+                # 如果还是找不到，保持原路径（可能在其他位置）
+                processed_paths.append(path)
+        else:
+            processed_paths.append(path)
+
+    image_paths = processed_paths
+
     print(f"共 {len(image_paths)} 张图片")
     print("=" * 50)
 
