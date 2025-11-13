@@ -15,9 +15,8 @@ mkdir -p $SUBMIT_DIR/env
 
 echo ""
 echo "1. 复制模型文件..."
-cp /workspace/model/model.pdmodel $SUBMIT_DIR/model/
-cp /workspace/model/model.pdiparams $SUBMIT_DIR/model/
-cp /workspace/model/infer_cfg.yml $SUBMIT_DIR/model/
+cp -r /workspace/model/* $SUBMIT_DIR/model/
+echo "   已复制: $(ls /workspace/model/ | tr '\n' ' ')"
 
 echo "2. 复制预测脚本..."
 cp /workspace/predict.py $SUBMIT_DIR/
