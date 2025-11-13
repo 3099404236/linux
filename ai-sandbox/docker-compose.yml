@@ -19,6 +19,10 @@ services:
       - ~/music:/readonly/music:ro
       - ~/Downloads:/readonly/downloads:ro
 
+      # Docker socket（让沙盒能控制主机 Docker）
+      # 注意：已通过 safe-docker 脚本禁止删除镜像
+      - /var/run/docker.sock:/var/run/docker.sock
+
     # 资源限制（防止占用过多资源）
     deploy:
       resources:

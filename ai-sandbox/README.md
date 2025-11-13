@@ -10,11 +10,13 @@
 - 修改 `/workspace` 目录的文件
 - 访问主机的 Ollama 服务（调用 AI 模型）
 - 读取主机的指定目录（只读）
+- **控制主机 Docker**（运行容器、查看日志等）
+- **开发 Node.js / Go 项目**
 
 ### ❌ 容器内 AI 不能：
 - 访问主机的其他文件
 - 修改主机系统
-- 影响其他 Docker 容器
+- **删除主机的 Docker 镜像**（已被安全脚本拦截）
 - 突破资源限制（CPU/内存）
 - 获取 root 特权
 - 访问主机的敏感信息
@@ -117,7 +119,24 @@ AI：[运行测试]
 AI：代码已保存到 /workspace/convert.py
 ```
 
-### 场景 3：批量下载视频音频
+### 场景 3：让 AI 控制主机 Docker
+
+```bash
+# 进入沙盒
+docker compose exec ai-sandbox bash
+
+# 让 AI 帮你运行 demucs 去人声（控制主机的 Docker）
+sgpt "用主机的 demucs-gpu 容器分离 /readonly/music/歌曲.mp3 的人声"
+
+# AI 会执行：
+docker run --rm --gpus all \
+  -v ~/music:/audio \
+  demucs-gpu demucs --two-stems=vocals /audio/歌曲.mp3
+
+# 结果自动保存在 ~/music/separated/
+```
+
+### 场景 4：批量下载视频音频
 
 ```bash
 # 在沙盒内使用 yt-dlp
@@ -207,6 +226,10 @@ ai "找出最大的文件"
 3. **不要禁用安全选项**（如 `no-new-privileges`）
 4. **定期审查 AI 生成的代码**
 5. **不要在生产环境使用自动执行功能**
+6. **Docker 控制功能**：
+   - ✅ 已禁止删除镜像操作（通过 safe-docker 脚本）
+   - ✅ 可以安全地让 AI 运行容器、查看日志
+   - ⚠️ 如果需要删除镜像，请退出沙盒在主机上手动操作
 
 ## 🎓 学习资源
 

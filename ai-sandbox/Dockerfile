@@ -53,6 +53,11 @@ RUN apt-get update && apt-get install -y \
 # 创建 fd 符号链接（Debian 中叫 fdfind）
 RUN ln -s $(which fdfind) /usr/local/bin/fd 2>/dev/null || true
 
+# 安装 Node.js (LTS 20.x)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
 # 安装 GitHub CLI
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
     dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
@@ -62,6 +67,23 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
     apt-get update && \
     apt-get install -y gh && \
     rm -rf /var/lib/apt/lists/*
+
+# 安装 Docker CLI（只安装客户端，不安装 daemon）
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | \
+    gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian bullseye stable" | \
+    tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y docker-ce-cli docker-compose-plugin && \
+    rm -rf /var/lib/apt/lists/*
+
+# 安装 Go (1.21.x)
+RUN curl -fsSL https://go.dev/dl/go1.21.5.linux-amd64.tar.gz -o /tmp/go.tar.gz && \
+    tar -C /usr/local -xzf /tmp/go.tar.gz && \
+    rm /tmp/go.tar.gz
+ENV PATH="/usr/local/go/bin:${PATH}"
+ENV GOPATH="/home/aiuser/go"
+ENV PATH="${GOPATH}/bin:${PATH}"
 
 # 安装 Python 工具和库
 RUN pip install --no-cache-dir \
@@ -120,12 +142,40 @@ RUN pip install --no-cache-dir \
 # 安装 Playwright 浏览器（可选，比较大）
 # RUN playwright install chromium
 
+# 创建安全的 Docker 包装脚本（防止删除镜像）
+RUN cat > /usr/local/bin/safe-docker << 'EOF'
+#!/bin/bash
+# 安全的 Docker 包装脚本 - 防止删除镜像
+
+# 拦截危险的删除命令
+if [[ "$1" == "rmi" ]] || \
+   [[ "$1" == "image" && "$2" == "rm" ]] || \
+   [[ "$1" == "image" && "$2" == "prune" ]] || \
+   [[ "$1" == "system" && "$2" == "prune" && "$*" =~ "-a" ]]; then
+    echo "❌ 错误: 为了安全，禁止在沙盒中删除镜像！"
+    echo "   被拦截的命令: docker $@"
+    echo ""
+    echo "   如果你真的需要删除镜像，请在主机上执行："
+    echo "   exit  # 退出沙盒"
+    echo "   docker $@  # 在主机上执行"
+    exit 1
+fi
+
+# 其他命令正常执行
+exec /usr/bin/docker "$@"
+EOF
+
+RUN chmod +x /usr/local/bin/safe-docker
+
 # 创建工作目录
 WORKDIR /workspace
 
 # 创建非 root 用户（安全性）
 RUN useradd -m -s /bin/bash aiuser && \
     chown -R aiuser:aiuser /workspace
+
+# 将 aiuser 添加到 docker 组（如果存在）
+RUN groupadd -f docker && usermod -aG docker aiuser
 
 # 创建常用目录
 RUN mkdir -p /workspace/{downloads,projects,scripts,data} && \
@@ -147,7 +197,12 @@ RUN echo 'alias ll="ls -lah"' >> ~/.bashrc && \
     echo 'alias rg="rg --smart-case"' >> ~/.bashrc && \
     echo 'alias cat="bat --style=plain"' >> ~/.bashrc && \
     echo 'alias find="fd"' >> ~/.bashrc && \
-    echo 'export EDITOR=vim' >> ~/.bashrc
+    echo 'alias docker="safe-docker"' >> ~/.bashrc && \
+    echo 'export EDITOR=vim' >> ~/.bashrc && \
+    echo 'export PATH="/usr/local/go/bin:$HOME/go/bin:$PATH"' >> ~/.bashrc && \
+    echo '' >> ~/.bashrc && \
+    echo '# Docker 命令提示' >> ~/.bashrc && \
+    echo 'echo "💡 提示: Docker 命令已启用，但删除镜像功能已被禁用以保护主机"' >> ~/.bashrc
 
 # 默认命令
 CMD ["/bin/bash"]

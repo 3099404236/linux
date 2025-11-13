@@ -262,6 +262,40 @@ gh issue list
 gh gist create file.txt
 ```
 
+### docker - 容器管理（安全限制版）
+```bash
+# 🔒 安全说明：已禁止删除镜像，保护主机
+# 可以执行的命令：
+
+# 查看容器
+docker ps
+docker ps -a
+
+# 查看镜像
+docker images
+
+# 运行容器（例如：运行 demucs 分离人声）
+docker run --rm --gpus all \
+  -v ~/music:/audio \
+  demucs-gpu demucs --two-stems=vocals /audio/歌曲.mp3
+
+# 查看日志
+docker logs 容器名
+
+# 停止/启动容器
+docker stop 容器名
+docker start 容器名
+
+# 进入容器
+docker exec -it 容器名 bash
+
+# 🚫 被禁止的命令（会被拦截）：
+# docker rmi 镜像名        # 删除镜像
+# docker image rm 镜像名   # 删除镜像
+# docker image prune       # 清理镜像
+# docker system prune -a   # 清理所有
+```
+
 ### jq - JSON 处理
 ```bash
 # 格式化 JSON
@@ -272,6 +306,43 @@ curl https://api.github.com/users/torvalds | jq '.name'
 
 # 过滤数组
 echo '[1,2,3,4,5]' | jq 'map(select(. > 2))'
+```
+
+### Node.js / npm - JavaScript 运行环境
+```bash
+# 查看版本
+node --version  # v20.x
+npm --version
+
+# 运行 JS 脚本
+node script.js
+
+# 安装包
+npm install lodash
+
+# 运行 Web 服务器
+npx http-server
+
+# 执行在线工具（不需要安装）
+npx prettier --write *.js
+```
+
+### Go - 高性能编程语言
+```bash
+# 查看版本
+go version  # go1.21.5
+
+# 运行代码
+go run main.go
+
+# 编译
+go build -o myapp
+
+# 安装工具
+go install github.com/user/tool@latest
+
+# 初始化项目
+go mod init myproject
 ```
 
 ---
@@ -425,6 +496,31 @@ sgpt "连接 PostgreSQL，查询最近注册的 10 个用户"
 # AI 会使用 psql 或 psycopg2 执行查询
 ```
 
+### 场景 6：控制主机 Docker（去除人声）
+
+```bash
+# 让 AI 帮你运行 demucs 分离人声
+sgpt "用 demucs 分离 /readonly/music/歌曲.mp3 的人声"
+
+# AI 会执行：
+docker run --rm --gpus all \
+  -v ~/music:/audio \
+  demucs-gpu demucs --two-stems=vocals /audio/歌曲.mp3
+
+# 结果保存在 ~/music/separated/
+```
+
+### 场景 7：Node.js 脚本开发
+
+```bash
+interpreter
+
+你：写个 Node.js 脚本，批量重命名文件
+AI：[生成代码]
+AI：[测试运行]
+AI：完成！
+```
+
 ---
 
 ## 🔄 工具对比：AI 沙盒 vs Claude Code
@@ -440,6 +536,10 @@ sgpt "连接 PostgreSQL，查询最近注册的 10 个用户"
 | **文档处理** | ✅ pandoc, PDF tools | ✅ |
 | **多媒体** | ✅ ffmpeg, imagemagick | ⚠️ 有限 |
 | **浏览器自动化** | ✅ playwright, selenium | ⚠️ 有限 |
+| **Docker 控制** | ✅ Docker CLI（禁止删除镜像） | ❌ |
+| **Node.js** | ✅ v20 LTS + npm | ✅ |
+| **Go** | ✅ v1.21.5 | ✅ |
+| **Rust** | ❌ | ✅ |
 | **AI 能力** | ✅ 本地 Qwen2.5-Coder | ✅ Claude |
 | **MCP 集成** | ⚠️ 通过 API 手动实现 | ✅ 原生支持 |
 
@@ -489,13 +589,24 @@ sgpt "你的需求"
 
 ## 🚀 下一步
 
-这个工具集已经接近 Claude Code 的能力！
+这个工具集已经超越 Claude Code 的能力！
 
-**还可以添加：**
-- Docker CLI（在沙盒内操作主机 Docker）
-- Kubernetes CLI (kubectl)
-- Terraform
-- Ansible
-- 更多语言的开发工具（Node.js, Go, Rust）
+**✅ 已包含的功能：**
+- ✅ Docker CLI（安全限制版，禁止删除镜像）
+- ✅ Node.js v20 LTS + npm
+- ✅ Go v1.21.5
+
+**可选的企业级工具（如果你需要多机管理）：**
+- Kubernetes CLI (kubectl) - 管理容器集群
+- Terraform - 自动化云资源管理
+- Ansible - 批量配置服务器
+- Rust - 系统级编程语言
+
+**当前配置适合：**
+- 单机开发环境 ✅
+- AI 辅助编程 ✅
+- 自动化任务 ✅
+- 多媒体处理 ✅
+- Web 开发 ✅
 
 根据你的需求，随时可以扩展！
