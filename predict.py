@@ -30,18 +30,16 @@ def main(data_file, output_file):
     with open(data_file, 'r') as f:
         image_paths = [line.strip() for line in f.readlines()]
 
-    # 处理图片路径：如果是相对路径，转换为基于 data_file 所在目录的路径
+    # 处理图片路径：如果是相对路径，转换为基于 data_file 所在目录的绝对路径
+    # AI Studio 评测环境中，data.txt 和图片通常在同一父目录下
     data_dir = os.path.dirname(os.path.abspath(data_file))
     processed_paths = []
     for path in image_paths:
         if not os.path.isabs(path):  # 如果是相对路径
-            # 尝试相对于 data_file 所在目录
+            # 转换为基于 data_file 所在目录的绝对路径
+            # 不检查文件是否存在，因为评测时图片才会在正确位置
             abs_path = os.path.join(data_dir, path)
-            if os.path.exists(abs_path):
-                processed_paths.append(abs_path)
-            else:
-                # 如果还是找不到，保持原路径（可能在其他位置）
-                processed_paths.append(path)
+            processed_paths.append(abs_path)
         else:
             processed_paths.append(path)
 
