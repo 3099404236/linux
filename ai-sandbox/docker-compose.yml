@@ -15,6 +15,9 @@ services:
       # 工作区（AI 可以完全操作）
       - ./workspace:/workspace
 
+      # 项目目录（可读写，用于 VS Code 开发）
+      - ~/projects:/workspace/projects:rw
+
       # 只读挂载（AI 只能读取，不能修改主机文件）
       - ~/music:/readonly/music:ro
       - ~/Downloads:/readonly/downloads:ro

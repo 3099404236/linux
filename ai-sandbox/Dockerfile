@@ -36,6 +36,12 @@ RUN apt-get update && apt-get install -y \
     # 文档处理
     pandoc \
     poppler-utils \
+    # LaTeX 支持（XeLaTeX 用于中文编译）
+    texlive-xetex \
+    texlive-fonts-recommended \
+    texlive-latex-extra \
+    texlive-lang-chinese \
+    latexmk \
     # 多媒体
     ffmpeg \
     imagemagick \
@@ -151,6 +157,13 @@ RUN pip install --no-cache-dir \
 
 # 安装 Playwright 浏览器（可选，比较大）
 # RUN playwright install chromium
+
+# 克隆并安装用户的 pdf2ppt-converter 项目
+RUN git clone https://github.com/3099404236/pdf2ppt-converter.git /tmp/pdf2ppt && \
+    cd /tmp/pdf2ppt && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -e . && \
+    rm -rf /tmp/pdf2ppt/.git
 
 # 创建安全的 Docker 包装脚本（防止删除镜像）
 RUN cat > /usr/local/bin/safe-docker << 'EOF'
