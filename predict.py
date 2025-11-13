@@ -86,9 +86,9 @@ class Detector:
         """获取预处理操作"""
         preprocess_list = []
         for op_info in self.config['Preprocess']:
-            op_type = list(op_info.keys())[0]
-            op_info[op_type]['name'] = op_type
-            preprocess_list.append(op_info[op_type])
+            op_type = op_info['type']
+            op_info['name'] = op_type
+            preprocess_list.append(op_info)
         return Compose(preprocess_list)
 
     def preprocess(self, image_path):
