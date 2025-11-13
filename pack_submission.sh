@@ -23,20 +23,24 @@ cp /workspace/predict.py $SUBMIT_DIR/
 
 echo "3. 复制 PaddleDetection 依赖库..."
 echo "   这可能需要一些时间..."
-# 复制整个 PaddleDetection
-cp -r /workspace/PaddleDetection $SUBMIT_DIR/env/
 
-# 删除不需要的文件和目录以减小体积
-echo "   清理不必要的文件..."
-rm -rf $SUBMIT_DIR/env/PaddleDetection/.git
-rm -rf $SUBMIT_DIR/env/PaddleDetection/output
-rm -rf $SUBMIT_DIR/env/PaddleDetection/vdl_dir
-rm -rf $SUBMIT_DIR/env/PaddleDetection/dataset
-rm -rf $SUBMIT_DIR/env/PaddleDetection/logs
-rm -rf $SUBMIT_DIR/env/PaddleDetection/.idea
-find $SUBMIT_DIR/env/PaddleDetection -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-find $SUBMIT_DIR/env/PaddleDetection -type f -name "*.pyc" -delete 2>/dev/null || true
-find $SUBMIT_DIR/env/PaddleDetection -type f -name "*.pyo" -delete 2>/dev/null || true
+# 检查并安装 rsync
+if ! command -v rsync &> /dev/null; then
+    echo "   安装 rsync 工具..."
+    apt-get update -qq && apt-get install -y -qq rsync > /dev/null 2>&1
+fi
+
+# 使用 rsync 复制，排除不需要的文件
+rsync -a --exclude='.git' \
+         --exclude='output' \
+         --exclude='vdl_dir' \
+         --exclude='__pycache__' \
+         --exclude='*.pyc' \
+         --exclude='*.pyo' \
+         --exclude='dataset' \
+         --exclude='logs' \
+         --exclude='.idea' \
+         /workspace/PaddleDetection $SUBMIT_DIR/env/
 echo "   PaddleDetection 复制完成"
 
 echo "4. 检查模型大小..."
