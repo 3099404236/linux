@@ -7,22 +7,27 @@ echo "======================================"
 echo "开始打包提交文件"
 echo "======================================"
 
-# 创建提交目录
-SUBMIT_DIR="/workspace/submission"
+# 使用当前目录
+WORK_DIR="$(pwd)"
+SUBMIT_DIR="$WORK_DIR/submission"
 rm -rf $SUBMIT_DIR
 mkdir -p $SUBMIT_DIR/model
 mkdir -p $SUBMIT_DIR/env
 
 echo ""
 echo "1. 复制模型文件..."
-cp /workspace/model/model.pdmodel $SUBMIT_DIR/model/
-cp /workspace/model/model.pdiparams $SUBMIT_DIR/model/
-cp /workspace/model/model.pdiparams.info $SUBMIT_DIR/model/
-cp /workspace/model/infer_cfg.yml $SUBMIT_DIR/model/
+if [ ! -d "$WORK_DIR/model" ]; then
+    echo "❌ 错误：找不到 model 目录！"
+    exit 1
+fi
+cp $WORK_DIR/model/model.pdmodel $SUBMIT_DIR/model/
+cp $WORK_DIR/model/model.pdiparams $SUBMIT_DIR/model/
+cp $WORK_DIR/model/model.pdiparams.info $SUBMIT_DIR/model/
+cp $WORK_DIR/model/infer_cfg.yml $SUBMIT_DIR/model/
 echo "   已复制: model.pdmodel, model.pdiparams, model.pdiparams.info, infer_cfg.yml"
 
 echo "2. 复制预测脚本..."
-cp /workspace/predict.py $SUBMIT_DIR/
+cp $WORK_DIR/predict.py $SUBMIT_DIR/
 
 echo "3. 复制 PaddleDetection 依赖库..."
 echo "   这可能需要一些时间..."
@@ -34,6 +39,10 @@ if ! command -v rsync &> /dev/null; then
 fi
 
 # 使用 rsync 复制，排除不需要的文件
+if [ ! -d "$WORK_DIR/PaddleDetection" ]; then
+    echo "❌ 错误：找不到 PaddleDetection 目录！"
+    exit 1
+fi
 rsync -a --exclude='.git' \
          --exclude='output' \
          --exclude='vdl_dir' \
@@ -43,7 +52,7 @@ rsync -a --exclude='.git' \
          --exclude='dataset' \
          --exclude='logs' \
          --exclude='.idea' \
-         /workspace/PaddleDetection $SUBMIT_DIR/env/
+         $WORK_DIR/PaddleDetection $SUBMIT_DIR/env/
 echo "   PaddleDetection 复制完成"
 
 echo "4. 检查模型大小..."
