@@ -34,11 +34,14 @@ def main(data_file, output_file):
     print("=" * 50)
 
     # 初始化检测器（使用官方 Detector）
+    # 禁用优化以兼容旧版本 PaddlePaddle
     detector = Detector(
         model_dir='model',
         device='GPU',
         run_mode='paddle',  # 使用原生 Paddle 推理
-        threshold=0.3
+        threshold=0.3,
+        enable_mkldnn=False,  # 禁用 MKLDNN 优化
+        cpu_threads=1  # 使用单线程，避免某些优化
     )
 
     # 预测
