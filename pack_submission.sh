@@ -34,6 +34,13 @@ fi
 echo ""
 echo "4. 创建压缩包..."
 cd $SUBMIT_DIR
+
+# 检查是否有 zip 命令，如果没有就安装
+if ! command -v zip &> /dev/null; then
+    echo "安装 zip 工具..."
+    apt-get update -qq && apt-get install -y -qq zip unzip > /dev/null 2>&1
+fi
+
 zip -r submission.zip model/ predict.py
 
 echo ""
