@@ -33,18 +33,11 @@ def main(data_file, output_file):
     print(f"共 {len(image_paths)} 张图片")
     print("=" * 50)
 
-    # 初始化检测器（使用官方 Detector + TensorRT FP16 加速）
+    # 初始化检测器（使用官方 Detector）
     detector = Detector(
         model_dir='model',
         device='GPU',
-        run_mode='trt_fp16',  # 使用 TensorRT FP16 加速
-        trt_min_shape=1,
-        trt_max_shape=1280,
-        trt_opt_shape=640,
-        trt_calib_mode=False,
-        cpu_threads=1,
-        enable_mkldnn=False,
-        enable_mkldnn_bfloat16=False,
+        run_mode='paddle',  # 使用原生 Paddle 推理
         threshold=0.3
     )
 
