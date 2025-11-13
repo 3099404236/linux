@@ -1,5 +1,9 @@
 FROM python:3.10-slim
 
+# 使用国内镜像源（加速构建）
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources || \
+    sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+
 # 安装系统工具包
 RUN apt-get update && apt-get install -y \
     # 基础工具
@@ -77,13 +81,19 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg | \
     apt-get install -y docker-ce-cli docker-compose-plugin && \
     rm -rf /var/lib/apt/lists/*
 
-# 安装 Go (1.21.x)
-RUN curl -fsSL https://go.dev/dl/go1.21.5.linux-amd64.tar.gz -o /tmp/go.tar.gz && \
+# 安装 Go (1.21.x) - 使用国内镜像
+RUN curl -fsSL https://mirrors.aliyun.com/golang/go1.21.5.linux-amd64.tar.gz -o /tmp/go.tar.gz || \
+    curl -fsSL https://go.dev/dl/go1.21.5.linux-amd64.tar.gz -o /tmp/go.tar.gz && \
     tar -C /usr/local -xzf /tmp/go.tar.gz && \
     rm /tmp/go.tar.gz
 ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH="/home/aiuser/go"
 ENV PATH="${GOPATH}/bin:${PATH}"
+ENV GOPROXY="https://goproxy.cn,direct"
+
+# 配置 pip 使用国内镜像源（加速下载）
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    pip config set install.trusted-host mirrors.aliyun.com
 
 # 安装 Python 工具和库
 RUN pip install --no-cache-dir \
@@ -183,6 +193,9 @@ RUN mkdir -p /workspace/{downloads,projects,scripts,data} && \
 
 # 切换到非 root 用户
 USER aiuser
+
+# 配置 npm 使用国内镜像源
+RUN npm config set registry https://registry.npmmirror.com
 
 # 配置 Git（基础设置）
 RUN git config --global init.defaultBranch main && \
