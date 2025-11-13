@@ -8,14 +8,22 @@ RUN apt-get update && apt-get install -y \
     wget \
     build-essential \
     ffmpeg \
+    jq \
+    httpie \
+    lynx \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 Ollama 客户端库
+# 安装 Ollama 客户端库和网络工具
 RUN pip install --no-cache-dir \
     ollama \
     shell-gpt \
     open-interpreter \
-    aider-chat
+    aider-chat \
+    requests \
+    beautifulsoup4 \
+    duckduckgo-search \
+    wikipedia \
+    yt-dlp
 
 # 创建工作目录
 WORKDIR /workspace

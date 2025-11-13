@@ -55,3 +55,7 @@ services:
     environment:
       - OLLAMA_HOST=http://host.docker.internal:11434
       - PYTHONUNBUFFERED=1
+      # 配置代理（通过主机的 Clash）
+      - http_proxy=http://host.docker.internal:7890
+      - https_proxy=http://host.docker.internal:7890
+      - all_proxy=socks5://host.docker.internal:7891
