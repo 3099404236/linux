@@ -21,7 +21,12 @@ cp /workspace/model/model.pdiparams $SUBMIT_DIR/model/
 echo "2. 复制预测脚本..."
 cp /workspace/predict.py $SUBMIT_DIR/
 
-echo "3. 检查模型大小..."
+echo "3. 复制 PaddleDetection 依赖库..."
+echo "   这可能需要一些时间..."
+cp -r /workspace/PaddleDetection $SUBMIT_DIR/env/
+echo "   PaddleDetection 复制完成"
+
+echo "4. 检查模型大小..."
 MODEL_SIZE=$(du -m $SUBMIT_DIR/model/model.pdiparams | cut -f1)
 echo "模型大小: ${MODEL_SIZE}M"
 
@@ -32,7 +37,7 @@ else
 fi
 
 echo ""
-echo "4. 创建压缩包..."
+echo "5. 创建压缩包..."
 cd $SUBMIT_DIR
 
 # 检查是否有 zip 命令，如果没有就安装
@@ -41,10 +46,11 @@ if ! command -v zip &> /dev/null; then
     apt-get update -qq && apt-get install -y -qq zip unzip > /dev/null 2>&1
 fi
 
-zip -r submission.zip model/ predict.py
+echo "   打包 model/, env/, predict.py..."
+zip -r submission.zip model/ env/ predict.py
 
 echo ""
-echo "5. 压缩包信息："
+echo "6. 压缩包信息："
 ls -lh submission.zip
 
 echo ""

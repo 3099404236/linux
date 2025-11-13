@@ -8,8 +8,9 @@ import os
 import json
 import time
 
-# 添加 PaddleDetection 路径
-sys.path.insert(0, '/workspace/PaddleDetection')
+# 添加 PaddleDetection 路径（相对路径，适配提交环境）
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(script_dir, 'env', 'PaddleDetection'))
 
 from deploy.python.infer import Detector, get_test_images
 import yaml
